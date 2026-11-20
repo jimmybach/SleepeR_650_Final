@@ -88,6 +88,17 @@ marijuana=nhanes("DUQ_J") |>
     DUQ220U #Last time used marijuana
   )
 dataset=inner_join(dataset, marijuana, by="SEQN")
+
+dataset <- dataset %>%
+  mutate(
+    DUQ220U = case_when(
+      DUQ220U == "Days"  ~ "Past Month",
+      DUQ220U == "Weeks"  ~ "Past Month",
+      DUQ220U == "Months"  ~ "Not Past Month",
+      DUQ220U == "Years" ~ "Not Past Month",
+      TRUE ~ "Not Past Month"
+    )
+  )
 rm(marijuana)
 
 
