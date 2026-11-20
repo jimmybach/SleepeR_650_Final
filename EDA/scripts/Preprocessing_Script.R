@@ -59,7 +59,7 @@ sleep <- nhanes('SLQ_J') |>
     SLD012 #
     )
 
-dataset=inner_join(dataset, sleep, by="SEQN")
+dataset=inner_join(demo, sleep, by="SEQN")
 rm(demo)
 rm(sleep)
 
@@ -116,4 +116,20 @@ mental=nhanes("DLQ_J") |>
   )
 dataset=inner_join(dataset, mental, by="SEQN")
 rm(mental)
+
+#Summarize Missing Data
+install.packages("naniar")
+library(naniar)
+
+#Built in function to summarize frequencies and percentages of missing data
+missing_var_totals = dataset %>%
+  miss_var_summary()
+
+#Prevent problems saving data as csv
+missing_var_totals = missing_var_totals %>%
+  mutate(pct_miss = as.numeric(pct_miss))
+
+write.csv(dataset, "data/unweighted_dataset_11_17.csv", row.names = FALSE)
+write.csv(as.data.frame(missing_var_totals), "data/missing_data_totals.csv", row.names = FALSE)
+
 
