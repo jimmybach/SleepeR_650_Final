@@ -1,7 +1,6 @@
 library(conflicted)
 library(tidyverse)
 library(nhanesA)
-library(haven)
 
 '## Grabbing raw data ----
 Outcome: Sleep
@@ -13,7 +12,7 @@ Race (RIDRETH3) - Race/Hispanic origin w/ NH Asian
 Gender (RIAGENDR) - Gender of the participant
 Age (RIDAGEYR) - Age in Years at screening
 
-Physical Activity- maybe pick some occupational 
+Physical Activity- maybe pick some occupational
 The following are binary variables, and there are corresponding questions for “number of days” and “minutes of” corresponding to each of them if we want more info:
   PAQ605 - Vigorous work activity (binary)
 PAQ620 - Moderate work activity
@@ -27,13 +26,13 @@ ALQ130 - Avg # of Alcohol drinks per day past 12 months
 Marijuana use
 DUQ217 - How often would you use marijuana?
   DUQ219 - How many joints or pipes smoke in a day? (“during the time you smoked…”)
-DUQ220U - Last time used marijuana or hashish/unit 
+DUQ220U - Last time used marijuana or hashish/unit
 Categorize this into recent use vs non-recent use
 Work Hours
 OCQ210 - Usually work 35 or more hours per week
 OCQ670 - Overall work schedule past 3 months (this gives categories like 9-5 job, evenings/nights, early mornings, variable, etc.)
-Mental Health 
-DPQ_J if we want to use depression screener (“Over the last 2 weeks, have you felt depressed?”, etc.) 
+Mental Health
+DPQ_J if we want to use depression screener (“Over the last 2 weeks, have you felt depressed?”, etc.)
 Don’t bother with this for now, but it gives us additional info if needed
 DLQ140 for “How often do you feel depressed?”
 DLQ100 - “How often do you feel worried or anxious?”
@@ -52,49 +51,54 @@ demo <- nhanes('DEMO_J') |>
     SDMVSTRA,
   )
 
+# Our study is looking at adults 20+
+# now if we inner_join on
+demo <- demo |>
+  dplyr::filter(RIDAGEYR >= 20)
+
 # sleep
 sleep <- nhanes('SLQ_J') |>
   select(
-    SEQN, 
+    SEQN,
     SLD012 #
-    )
+  )
 
-dataset=inner_join(demo, sleep, by="SEQN")
+dataset = inner_join(demo, sleep, by = "SEQN")
 rm(demo)
 rm(sleep)
 
-activity = nhanes("PAQ_J")|>
+activity = nhanes("PAQ_J") |>
   select(
     SEQN,
     PAD680 #Minutes sedentary activity
   )
 
-dataset=inner_join(dataset, activity, by="SEQN")
+dataset = inner_join(dataset, activity, by = "SEQN")
 rm(activity)
 
-alcohol=nhanes("ALQ_J") |>
+alcohol = nhanes("ALQ_J") |>
   select(
     SEQN,
     ALQ130 #Avg. number of drinks in past yr
   )
-dataset=inner_join(dataset, alcohol, by="SEQN")
+dataset = inner_join(dataset, alcohol, by = "SEQN")
 rm(alcohol)
 
 
-marijuana=nhanes("DUQ_J") |>
+marijuana = nhanes("DUQ_J") |>
   select(
     SEQN,
     DUQ219, #How many joints or pipes smoke in a day?
     DUQ220U #Last time used marijuana
   )
-dataset=inner_join(dataset, marijuana, by="SEQN")
+dataset = inner_join(dataset, marijuana, by = "SEQN")
 
 dataset <- dataset %>%
   mutate(
     DUQ220U = case_when(
-      DUQ220U == "Days"  ~ "Past Month",
-      DUQ220U == "Weeks"  ~ "Past Month",
-      DUQ220U == "Months"  ~ "Not Past Month",
+      DUQ220U == "Days" ~ "Past Month",
+      DUQ220U == "Weeks" ~ "Past Month",
+      DUQ220U == "Months" ~ "Not Past Month",
       DUQ220U == "Years" ~ "Not Past Month",
       TRUE ~ "Not Past Month"
     )
@@ -102,34 +106,36 @@ dataset <- dataset %>%
 rm(marijuana)
 
 
-tobacco=nhanes("SMQRTU_J") |>
+tobacco = nhanes("SMQRTU_J") |>
   select(
     SEQN,
     SMDANY #Used any tobacco product in last 5 days
   )
-dataset=inner_join(dataset, tobacco, by="SEQN")
+dataset = inner_join(dataset, tobacco, by = "SEQN")
 rm(tobacco)
 
-occupation=nhanes("OCQ_J") |>
+occupation = nhanes("OCQ_J") |>
   select(
     SEQN,
     OCQ210, #Usually work 35 or more hrs per week
     OCQ670 #Overall work schedule past 3 months
   )
-dataset=inner_join(dataset, occupation, by="SEQN")
+dataset = inner_join(dataset, occupation, by = "SEQN")
 rm(occupation)
 
-mental=nhanes("DLQ_J") |>
+mental = nhanes("DLQ_J") |>
   select(
     SEQN,
     DLQ140, #How often do you feel depressed?
     DLQ100 #How often do you feel worried or anxious?
   )
-dataset=inner_join(dataset, mental, by="SEQN")
+dataset = inner_join(dataset, mental, by = "SEQN")
 rm(mental)
 
 #Summarize Missing Data
-install.packages("naniar")
+if (!require("naniar", quietly = TRUE)) {
+  install.packages("naniar")
+}
 library(naniar)
 
 #Built in function to summarize frequencies and percentages of missing data
@@ -140,7 +146,9 @@ missing_var_totals = dataset %>%
 missing_var_totals = missing_var_totals %>%
   mutate(pct_miss = as.numeric(pct_miss))
 
-write.csv(dataset, "data/unweighted_dataset_11_17.csv", row.names = FALSE)
-write.csv(as.data.frame(missing_var_totals), "data/missing_data_totals.csv", row.names = FALSE)
-
-
+write.csv(dataset, "data/unweighted_dataset.csv", row.names = FALSE)
+write.csv(
+  as.data.frame(missing_var_totals),
+  "data/missing_data_totals.csv",
+  row.names = FALSE
+)
