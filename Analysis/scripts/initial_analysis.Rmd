@@ -1,0 +1,60 @@
+---
+title: "Initial Analysis"
+author: "Benjamin Daniel"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libs_data}
+library(conflicted)
+library(tidyverse)
+
+df <- read_csv('../../data/unweighted_dataset.csv') |>
+  mutate(across(where(is.character), as.factor))
+```
+
+```{r formulas}
+base <- SLD012 ~ RIDAGEYR + RIDAGEYR + RIDRETH3 + DMDEDUC2 + INDFMPIR
+
+f_base <- update(base, . ~ . + ALQ130 + DUQ220U)
+f_mental <- update(base, . ~ . + ALQ130 + DUQ220U + DLQ140 + DLQ100)
+f_interaction <- update(f_base, . ~ . + DUQ220U:DUQ219 + DUQ220U * ALQ130) # the colon here doesn't add DUQ219 as a main factor
+
+f_list <- list(f_base,f_mental,f_interaction)
+```
+
+```{r psych_pairs}
+df_less <- df |>
+  select(
+    SEQN,
+    RIDAGEYR,
+    RIDRETH3,
+    DMDEDUC2,
+    INDFMPIR,
+    ALQ130,
+    DUQ219,
+    DUQ220U,
+    DLQ140,
+    DLQ100
+  )
+
+psych::pairs.panels(df_less)
+```
+
+```{r model_runs}
+
+models <- vector(mode = "list", length=length(f_list))
+for (i in 1:length(f_list)) {
+  models[[i]] <- lm(formula = f_list[[i]], data=df)
+  print(summary(models[[i]]))
+}
+```
+
+Currently all of our models have incredibly low R-squared, but we need to look
+at the psych plot to determine if there any colinearity. Should also consider
+model formulation in more detail than this initial script. We also likely need to
+look at the residual plots to see if we need to do some form of transformation.
