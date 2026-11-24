@@ -54,7 +54,7 @@ demo <- nhanes('DEMO_J') |>
 # Our study is looking at adults 20+
 # now if we inner_join on
 demo <- demo |>
-  dplyr::filter(RIDAGEYR >= 20)
+  dplyr::filter(RIDAGEYR >= 20 & RIDAGEYR <= 59)
 
 # sleep
 sleep <- nhanes('SLQ_J') |>
@@ -88,6 +88,8 @@ rm(alcohol)
 marijuana = nhanes("DUQ_J") |>
   select(
     SEQN,
+    DUQ200,
+    DUQ211,
     DUQ219, #How many joints or pipes smoke in a day?
     DUQ220U #Last time used marijuana
   )
@@ -100,7 +102,7 @@ dataset <- dataset %>%
       DUQ220U == "Weeks" ~ "Past Month",
       DUQ220U == "Months" ~ "Not Past Month",
       DUQ220U == "Years" ~ "Not Past Month",
-      TRUE ~ "Not Past Month"
+      !is.na(DUQ220U) | DUQ200 == "No" ~ "Not Past Month"
     )
   )
 rm(marijuana)
@@ -152,3 +154,4 @@ write.csv(
   "data/missing_data_totals.csv",
   row.names = FALSE
 )
+
