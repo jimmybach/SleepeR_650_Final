@@ -73,10 +73,20 @@ rm(sleep)
 activity = nhanes("PAQ_J") |>
   select(
     SEQN,
+    PAQ665,
+    PAQ670,
     PAD680 #Minutes sedentary activity
   )
-
 dataset = inner_join(dataset, activity, by = "SEQN")
+
+dataset = dataset |>
+  mutate(
+    PAQ670 = if_else(
+      PAQ665 == "No", # if they did not report moderate activity, log as 0 days of activity
+      0,
+      PAQ670
+    )
+  )
 rm(activity)
 
 #if alq111 is no or alq121 is never in the past year
@@ -179,8 +189,9 @@ dataset = dataset |>
     where(~ is.character(.x) || is.factor(.x)),
     ~ replace(.x, as.character(.x) %in% c("Don't know", "Refused"), NA)))
 dataset = dataset |>
-  mutate(PAD680 = replace(PAD680, PAD680 %in% c(9999), NA),
-         ALQ130 = replace(ALQ130, ALQ130 %in% c(999), NA),)
+  mutate(PAQ670 = replace(PAQ670, PAQ670 %in% c(99), NA),
+          PAD680 = replace(PAD680, PAD680 %in% c(9999), NA),
+          ALQ130 = replace(ALQ130, ALQ130 %in% c(999), NA),)
 
 
 write.csv(dataset, "data/unweighted_dataset.csv", row.names = FALSE)
@@ -194,12 +205,13 @@ write.csv(
 
 covariates <- list(
   nhanes("SLQ_J") |>  select(SEQN, SLD012),
-  nhanes("PAQ_J") |>  select(SEQN, PAD680),
+  nhanes("PAQ_J") |>  select(SEQN, PAQ665, PAQ670, PAD680),
   nhanes("ALQ_J") |>  select(SEQN, ALQ111, ALQ121, ALQ130),
   nhanes("DUQ_J") |> select(SEQN, DUQ200, DUQ211, DUQ219, DUQ220U),
   nhanes("SMQRTU_J") |>  select(SEQN, SMDANY),
   nhanes("OCQ_J") |> select(SEQN, OCQ210, OCQ670),
-  nhanes("DLQ_J") |> select(SEQN, DLQ140, DLQ100)
+  nhanes("DLQ_J") |> select(SEQN, DLQ140, DLQ100),
+  nhanes("BMX_J") |> select(SEQN, BMXBMI)
 )
 
 # I need to keep the NA's for the survey design object, so using left join
@@ -224,6 +236,12 @@ sum(!complete.cases(full))
 # some of this will hurt the numer of complete cases some will help
 full <- full |>
   mutate(
+    PAQ670 = replace(PAQ670, PAQ670 %in% c(99), NA),
+    PAQ670 = if_else(
+      PAQ665 == "No",
+      0,
+      PAQ670
+    ),
     PAD680 = replace(PAD680, PAD680 %in% c(9999), NA),
     ALQ130 = replace(ALQ130, ALQ130 %in% c(999), NA),
     ALQ130 = if_else(
@@ -250,8 +268,8 @@ sum(!complete.cases(full))
 # Kept all of the covariates we had been looking at above, so then we can only
 # filter on a subset of those used in the analysis. DO WE WANT any physical activity variable
 analysis_vars <- c(
-  "SLD012", "RIAGENDR", "RIDAGEYR", "RIDRETH3", "INDFMPIR", "PAD680",
-  "ALQ130", "DUQ219", "DUQ220U", "DLQ100", "DLQ140"
+  "SLD012", "RIAGENDR", "RIDAGEYR", "RIDRETH3", "INDFMPIR", "PAQ670",
+  "PAD680", "ALQ130", "DUQ219", "DUQ220U", "DLQ100", "DLQ140", "BMXBMI"
 )
 
 # The easiest integration for the survey design object is to subset, so this sets

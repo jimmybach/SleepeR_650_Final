@@ -12,6 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r libs_data}
 library(conflicted)
 library(tidyverse)
+library(car)
 
 df <- read_csv('../../data/unweighted_dataset.csv') |>
   mutate(across(where(is.character), as.factor))
@@ -22,9 +23,11 @@ base <- SLD012 ~ RIDAGEYR + RIDAGEYR + RIDRETH3 + DMDEDUC2 + INDFMPIR
 
 f_base <- update(base, . ~ . + ALQ130 + DUQ220U)
 f_mental <- update(base, . ~ . + ALQ130 + DUQ220U + DLQ140 + DLQ100)
+f_physical <- update(f_base, . ~ . + PAQ670 + PAD680 + BMXBMI)
 f_interaction <- update(f_base, . ~ . + DUQ220U:DUQ219 + DUQ220U * ALQ130) # the colon here doesn't add DUQ219 as a main factor
+f_interaction_and_physical <- update(f_physical, . ~ . + DUQ220U:DUQ219 + DUQ220U * ALQ130)
 
-f_list <- list(f_base,f_mental,f_interaction)
+f_list <- list(f_base,f_mental,f_physical,f_interaction,f_interaction_and_physical)
 ```
 
 ```{r psych_pairs}
@@ -39,7 +42,10 @@ df_less <- df |>
     DUQ219,
     DUQ220U,
     DLQ140,
-    DLQ100
+    DLQ100,
+    PAQ670,
+    PAD680,
+    BMXBMI
   )
 
 psych::pairs.panels(df_less)
@@ -58,6 +64,17 @@ Currently all of our models have incredibly low R-squared, but we need to look
 at the psych plot to determine if there any colinearity. Should also consider
 model formulation in more detail than this initial script. We also likely need to
 look at the residual plots to see if we need to do some form of transformation.
+
+```{r correlation}
+##Pearson correlations for just numeric variables for the moment
+cormat = cor(drop_na(df_less[c("RIDAGEYR", "INDFMPIR", "ALQ130", "PAQ670", "PAD680", "BMXBMI")]))
+pres <- cor.mtest(drop_na(df_less[c("RIDAGEYR", "INDFMPIR", "ALQ130", "PAQ670", "PAD680", "BMXBMI")]), conf.level = .95)
+corrplot.mixed(cormat, lower.col = "black", number.cex = 1,p.mat = pres$p, sig.level = .05) # cross out insignificant coefficient
+```
+```{r vif_calculations}
+# car::vif(models[3]) ## Need to do some work here to get this working since everything has to be numeric -- does it make sense when we are using categoral variables?
+```
+
 
 ```{r survey_weights}
 library(survey)
