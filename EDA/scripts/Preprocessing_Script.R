@@ -118,6 +118,15 @@ dataset <- dataset %>%
       !is.na(DUQ220U) | DUQ200 == "No" ~ "Not Past Month"
     )
   )
+
+dataset <- dataset |>
+  mutate(
+    DUQ219 = if_else(
+      DUQ200 == "No" | DUQ211 == "No",
+      "0 per day", # represent anyone who never smoked regularly as having smoked 0 per day
+      DUQ219
+    )
+  )
 rm(marijuana)
 
 
@@ -170,7 +179,7 @@ dataset = dataset |>
 dataset = dataset |>
   mutate(PAD680 = replace(PAD680, PAD680 %in% c(9999), NA),
          ALQ130 = replace(ALQ130, ALQ130 %in% c(999), NA),)
-  
+
 
 write.csv(dataset, "data/unweighted_dataset.csv", row.names = FALSE)
 write.csv(
