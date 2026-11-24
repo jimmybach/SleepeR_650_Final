@@ -58,3 +58,17 @@ Currently all of our models have incredibly low R-squared, but we need to look
 at the psych plot to determine if there any colinearity. Should also consider
 model formulation in more detail than this initial script. We also likely need to
 look at the residual plots to see if we need to do some form of transformation.
+
+```{r survey_weights}
+library(srvyr) # for the dplyr syntax survey object design
+library(survey) # for svyby() lm calls
+# options(survey.lonely.psu = "adjust") may need this to deal with lingering NA's
+
+# use srvyr with filtering joins, like semi_join to replicate our preprocess script
+# turn into a survey object with as_survey_design()
+
+# pipe into survey lm calls like survey::svylm()
+
+
+```
+
