@@ -49,6 +49,7 @@ demo <- nhanes('DEMO_J') |>
     INDFMPIR, #Ratio of family income to poverty
     SDMVPSU, # these two are used to make sample weights
     SDMVSTRA,
+    WTINT2YR
   )
 
 # Our study is looking at adults 20+
@@ -76,14 +77,26 @@ activity = nhanes("PAQ_J") |>
 dataset = inner_join(dataset, activity, by = "SEQN")
 rm(activity)
 
+#if alq111 is no or alq121 is never in the past year
 alcohol = nhanes("ALQ_J") |>
   select(
     SEQN,
+    ALQ111,
+    ALQ121,
     ALQ130 #Avg. number of drinks in past yr
   )
 dataset = inner_join(dataset, alcohol, by = "SEQN")
+dataset = dataset %>%
+  mutate(
+    ALQ130 = if_else(
+      ALQ111 == "No" | ALQ121 == "Never in the last year",
+      0,
+      ALQ130
+    )
+  )
+dataset = dataset %>%
+  select(-ALQ111, -ALQ121)
 rm(alcohol)
-table(dataset$ALQ130)
 
 marijuana = nhanes("DUQ_J") |>
   select(
@@ -147,6 +160,17 @@ missing_var_totals = dataset %>%
 #Prevent problems saving data as csv
 missing_var_totals = missing_var_totals %>%
   mutate(pct_miss = as.numeric(pct_miss))
+
+colnames(dataset)
+
+dataset = dataset |>
+  mutate(across(
+    where(~ is.character(.x) || is.factor(.x)),
+    ~ replace(.x, as.character(.x) %in% c("Don't know", "Refused"), NA)))
+dataset = dataset |>
+  mutate(PAD680 = replace(PAD680, PAD680 %in% c(9999), NA),
+         ALQ130 = replace(ALQ130, ALQ130 %in% c(999), NA),)
+  
 
 write.csv(dataset, "data/unweighted_dataset.csv", row.names = FALSE)
 write.csv(
