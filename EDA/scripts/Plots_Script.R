@@ -225,7 +225,7 @@ library(naniar)
 
 missing_plot=gg_miss_var(dataset)
 ggsave(filename = paste0("./EDA/plots/missing_plot.png"),
-       plot = plot,
+       plot = missing_plot,
        width = 8,
        height = 6,
        dpi = 300
