@@ -83,7 +83,7 @@ alcohol = nhanes("ALQ_J") |>
   )
 dataset = inner_join(dataset, alcohol, by = "SEQN")
 rm(alcohol)
-
+table(dataset$ALQ130)
 
 marijuana = nhanes("DUQ_J") |>
   select(
