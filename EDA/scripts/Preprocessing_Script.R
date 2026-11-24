@@ -1,6 +1,8 @@
 library(conflicted)
 library(tidyverse)
 library(nhanesA)
+library(survey)
+library(srvyr)
 
 '## Grabbing raw data ----
 Outcome: Sleep
@@ -49,7 +51,8 @@ demo <- nhanes('DEMO_J') |>
     INDFMPIR, #Ratio of family income to poverty
     SDMVPSU, # these two are used to make sample weights
     SDMVSTRA,
-    WTINT2YR
+    WTINT2YR,
+    WTMEC2YR # alcohol and drug use need these weights and they are more restrictive, so we will use them
   )
 
 # Our study is looking at adults 20+
@@ -65,7 +68,6 @@ sleep <- nhanes('SLQ_J') |>
   )
 
 dataset = inner_join(demo, sleep, by = "SEQN")
-rm(demo)
 rm(sleep)
 
 activity = nhanes("PAQ_J") |>
@@ -187,4 +189,102 @@ write.csv(
   "data/missing_data_totals.csv",
   row.names = FALSE
 )
+
+# Prep for Survey Weights Object and Dataset ----
+
+covariates <- list(
+  nhanes("SLQ_J") |>  select(SEQN, SLD012),
+  nhanes("PAQ_J") |>  select(SEQN, PAD680),
+  nhanes("ALQ_J") |>  select(SEQN, ALQ111, ALQ121, ALQ130),
+  nhanes("DUQ_J") |> select(SEQN, DUQ200, DUQ211, DUQ219, DUQ220U),
+  nhanes("SMQRTU_J") |>  select(SEQN, SMDANY),
+  nhanes("OCQ_J") |> select(SEQN, OCQ210, OCQ670),
+  nhanes("DLQ_J") |> select(SEQN, DLQ140, DLQ100)
+)
+
+# I need to keep the NA's for the survey design object, so using left join
+# additionally all of the filtering needs to be a little different to not drop
+# people from the full DEMO dataset pre-emptively. Also reduce of a list into left_join is kind of an awesome way of
+full <- reduce(covariates, left_join, by = "SEQN", .init = demo)
+sum(!complete.cases(full))
+
+
+# we can uniformly say we are going to refactor every character vector as a factor
+# and then make every Don't Know or Refused into an NA
+full <- full |>
+  mutate(across(
+    where(~ is.character(.x) || is.factor(.x)),
+    ~ replace(.x, as.character(.x) %in% c("Don't know", "Refused"), NA)
+  ))
+
+# actually no change in the number of complete cases
+sum(!complete.cases(full))
+
+# From above we chose to similarly recode the 7777 and 9999 as NAs, and then the other changes to the variables
+# some of this will hurt the numer of complete cases some will help
+full <- full |>
+  mutate(
+    PAD680 = replace(PAD680, PAD680 %in% c(9999), NA),
+    ALQ130 = replace(ALQ130, ALQ130 %in% c(999), NA),
+    ALQ130 = if_else(
+      ALQ111 == "No" | ALQ121 == "Never in the last year",
+      0,
+      ALQ130
+    ),
+    DUQ220U = case_when(
+      DUQ220U %in% c("Days", "Weeks")   ~ "Past Month",
+      DUQ220U %in% c("Months", "Years") ~ "Not Past Month",
+      DUQ200 == "No"                    ~ "Not Past Month" # specifically here we can't turn the NA's into "Not Past Month"
+    ),
+    DUQ219 = if_else(
+      DUQ200 == "No" | DUQ211 == "No",
+      "0 per day",
+      as.character(DUQ219)
+    )
+  ) |>
+  select(-ALQ111, -ALQ121)
+
+# we actually gain a couple hundred complete cases with the recoding
+sum(!complete.cases(full))
+
+# Kept all of the covariates we had been looking at above, so then we can only
+# filter on a subset of those used in the analysis. DO WE WANT any physical activity variable
+analysis_vars <- c(
+  "SLD012", "RIAGENDR", "RIDAGEYR", "RIDRETH3", "INDFMPIR", "PAD680",
+  "ALQ130", "DUQ219", "DUQ220U", "DLQ100", "DLQ140"
+)
+
+# The easiest integration for the survey design object is to subset, so this sets
+# up logical vectors to subset by in the subset step
+full <- full |>
+  mutate(
+    in_age_range = RIDAGEYR >= 20 & RIDAGEYR <= 59,
+    # we want only the analysis variables and to make sure they have no NA's
+    complete     = if_all(all_of(analysis_vars), ~ !is.na(.x)),
+    in_analysis  = in_age_range & complete & WTMEC2YR > 0 # need valid weights
+  )
+
+# okay but when we reduce the number of covariates to only the ones we analyze we
+# have N=2250
+sum(full$in_analysis)
+
+NA_count <- full |>
+  summarize(across(everything(), ~ sum(is.na(.x))) )
+
+
+# full design
+full_design <- full |>
+  as_survey_design(
+    ids     = SDMVPSU,
+    strata  = SDMVSTRA,
+    weights = WTMEC2YR,
+    nest    = TRUE
+  )
+
+# We can just filter the design like a dplyr argument thanks to srvyr
+analytic_design <- full_design |>
+  srvyr::filter(in_analysis)
+
+saveRDS(analytic_design, "data/analytic_design.rds")
+write.csv(full, "data/full_data.csv", row.names = FALSE)
 

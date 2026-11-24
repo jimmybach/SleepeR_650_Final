@@ -60,14 +60,11 @@ model formulation in more detail than this initial script. We also likely need t
 look at the residual plots to see if we need to do some form of transformation.
 
 ```{r survey_weights}
-library(srvyr) # for the dplyr syntax survey object design
-library(survey) # for svyby() lm calls
-# options(survey.lonely.psu = "adjust") may need this to deal with lingering NA's
+library(survey)
 
-# use srvyr with filtering joins, like semi_join to replicate our preprocess script
-# turn into a survey object with as_survey_design()
+# read in the survey design from the .rds
+design <- readRDS("../../data/analytic_design.rds")
 
-# pipe into survey lm calls like survey::svylm()
 
 
 ```
