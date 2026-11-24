@@ -1,0 +1,6 @@
+# Inputs for this project's devenv.
+inputs:
+  nord:
+    url: path:/home/benjad/nord-nixos
+  nixpkgs:
+    follows: nord/nixpkgs
