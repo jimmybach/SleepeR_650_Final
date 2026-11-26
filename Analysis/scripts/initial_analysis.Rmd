@@ -32,7 +32,7 @@ f_list <- list(f_base,f_mental,f_physical,f_interaction,f_interaction_and_physic
 
 ```{r psych_pairs}
 df_less <- df |>
-  select(
+  dplyr::select(
     SEQN,
     RIDAGEYR,
     RIDRETH3,
@@ -45,7 +45,7 @@ df_less <- df |>
     DLQ100,
     PAQ670,
     PAD680,
-    BMXBMI
+    BMXBMI # I don't think BMI got added into the unweighted so throws an error here
   )
 
 psych::pairs.panels(df_less)
@@ -79,10 +79,108 @@ corrplot.mixed(cormat, lower.col = "black", number.cex = 1,p.mat = pres$p, sig.l
 ```{r survey_weights}
 library(survey)
 
-# read in the survey design from the .rds
-design <- readRDS("../../data/analytic_design.rds")
+full <- read_csv("../../data/full_data.csv")
+full <- full |> 
+  mutate(across(where(is.character), as.factor))
+
+# Because of survey design things that I don't understand the residual degrees of
+# freedom are determined by the starta and primary sampling units. This means we 
+# have a max cap on parameters we can have in our model and because we have so many
+# categorical varaibles we were hitting this very fast, so we can test models with 
+# limited combinations or we can bin the categorical variables into smaller bins
+
+# for example the following formula leaves us with 0 residual degrees of freedom which as you can imagine is bad
+# svy_formula <- SLD012 ~ RIDAGEYR + RIDRETH3 + DMDEDUC2 + INDFMPIR + BMXBMI + DUQ220U * ALQ130 
+
+# I think we should drop education which frees up enough to add in the physical activity variables
+svy_formula <- SLD012 ~ RIDAGEYR + RIDRETH3 + INDFMPIR + BMXBMI + PAQ670 + PAD680 + DUQ220U * ALQ130 
+
+analysis_vars <- all.vars(svy_formula)
+
+full_flagged <- full |>
+  mutate(
+    in_age_range = RIDAGEYR >= 20 & RIDAGEYR <= 59,
+    complete     = if_all(all_of(analysis_vars), ~ !is.na(.x)),
+    in_analysis  = in_age_range & complete & WTMEC2YR > 0 # need valid weights
+  )
+
+# full design
+full_design <- full_flagged |>
+  as_survey_design(
+    ids     = SDMVPSU,
+    strata  = SDMVSTRA,
+    weights = WTMEC2YR,
+    nest    = TRUE
+  )
+
+# We can just filter the design like a dplyr argument thanks to srvyr
+analytic_design <- full_design |>
+  srvyr::filter(in_analysis)
+
+svy_mod <- svyglm(svy_formula, analytic_design)
+summary(svy_mod)
+
+```
+
+The simpler base fit of this model shows that Non-Hispanic Black individuals have
+a significant negative relationship with sleep hours on workday. We likely want
+to add in more interaction terms. We have two options, summary(model, df.resid=degf(analytic_design))
+which I am unsure of the justification of or we can do a set of models
+stratified by race which we can then just compare estimates between (no longer 
+testing statistically). This also allows for more residual degrees of freedom if
+we want to add more parameters.
+
+```{r set_df}
+summary(svy_mod, df.resid=degf(analytic_design))
+
+# Doing this we can also do more complicated designs if we want like adding in 
+# an interaction between race and poverty index. As there there is likely no biological
+# difference in needed sleep but there may be an interaction with socioeconomic status
+# which likely impacts sleep
+
+# https://stackoverflow.com/questions/42698981/svyglm-in-package-survey-in-r-not-returning-std-errors
+# the way the svyglm operates is likely conservative, but just setting it to the
+# design degrees of freedom is also liekly not fully correct
 
 
+```
+
+
+The stratified version is not really working because it is complaining of 1 PSU
+which I have no idea what that could mean.
+```{r stratified}
+full_strat <- split(full, full$RIDRETH3)
+
+svy_formula <- SLD012 ~ RIDAGEYR + INDFMPIR + BMXBMI + PAQ670 + PAD680 + DUQ220U * ALQ130 
+
+analysis_vars <- all.vars(svy_formula)
+svy_mod_list <- setNames(vector("list", length(full_strat)), names(full_strat))
+ 
+for(i in 1:length(full_strat)){
+ 
+  full_flagged <- full_strat[[i]] |>
+    mutate(
+      in_age_range = RIDAGEYR >= 20 & RIDAGEYR <= 59,
+      complete     = if_all(all_of(analysis_vars), ~ !is.na(.x)),
+      in_analysis  = in_age_range & complete & WTMEC2YR > 0 # need valid weights
+    )
+  
+  # full design
+  full_design <- full_flagged |>
+    as_survey_design(
+      ids     = SDMVPSU,
+      strata  = SDMVSTRA,
+      weights = WTMEC2YR,
+      nest    = TRUE
+    )
+  
+  # We can just filter the design like a dplyr argument thanks to srvyr
+  analytic_design <- full_design |>
+    srvyr::filter(in_analysis)
+  
+  svy_mod_list[[i]] <- svyglm(svy_formula, analytic_design)
+  summary(svy_mod_list[[i]]) 
+}
 
 ```
 

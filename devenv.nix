@@ -12,6 +12,8 @@
         nhanesA
         naniar
         psych
+        car
       ];
+    rstudio.enable = true;
   };
 }

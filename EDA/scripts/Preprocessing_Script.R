@@ -262,47 +262,8 @@ full <- full |>
   ) |>
   select(-ALQ111, -ALQ121)
 
-# we actually gain a couple hundred complete cases with the recoding
-sum(!complete.cases(full))
-
-# Kept all of the covariates we had been looking at above, so then we can only
-# filter on a subset of those used in the analysis. DO WE WANT any physical activity variable
-analysis_vars <- c(
-  "SLD012", "RIAGENDR", "RIDAGEYR", "RIDRETH3", "INDFMPIR", "PAQ670",
-  "PAD680", "ALQ130", "DUQ219", "DUQ220U", "DLQ100", "DLQ140", "BMXBMI"
-)
-
-# The easiest integration for the survey design object is to subset, so this sets
-# up logical vectors to subset by in the subset step
-full <- full |>
-  mutate(
-    in_age_range = RIDAGEYR >= 20 & RIDAGEYR <= 59,
-    # we want only the analysis variables and to make sure they have no NA's
-    complete     = if_all(all_of(analysis_vars), ~ !is.na(.x)),
-    in_analysis  = in_age_range & complete & WTMEC2YR > 0 # need valid weights
-  )
-
-# okay but when we reduce the number of covariates to only the ones we analyze we
-# have N=2250
-sum(full$in_analysis)
-
 NA_count <- full |>
   summarize(across(everything(), ~ sum(is.na(.x))) )
 
-
-# full design
-full_design <- full |>
-  as_survey_design(
-    ids     = SDMVPSU,
-    strata  = SDMVSTRA,
-    weights = WTMEC2YR,
-    nest    = TRUE
-  )
-
-# We can just filter the design like a dplyr argument thanks to srvyr
-analytic_design <- full_design |>
-  srvyr::filter(in_analysis)
-
-saveRDS(analytic_design, "data/analytic_design.rds")
 write.csv(full, "data/full_data.csv", row.names = FALSE)
 
