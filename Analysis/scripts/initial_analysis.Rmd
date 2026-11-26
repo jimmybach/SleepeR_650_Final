@@ -13,6 +13,8 @@ knitr::opts_chunk$set(echo = TRUE)
 library(conflicted)
 library(tidyverse)
 library(car)
+library(survey)
+library(srvyr)
 
 df <- read_csv('../../data/unweighted_dataset.csv') |>
   mutate(across(where(is.character), as.factor))
@@ -44,20 +46,20 @@ df_less <- df |>
     DLQ140,
     DLQ100,
     PAQ670,
-    PAD680,
-    BMXBMI # I don't think BMI got added into the unweighted so throws an error here
+    PAD680
+    # BMXBMI # I don't think BMI got added into the unweighted so throws an error here
   )
 
 psych::pairs.panels(df_less)
 ```
 
 ```{r model_runs}
-
-models <- vector(mode = "list", length=length(f_list))
-for (i in 1:length(f_list)) {
-  models[[i]] <- lm(formula = f_list[[i]], data=df)
-  print(summary(models[[i]]))
-}
+# 
+# models <- vector(mode = "list", length=length(f_list))
+# for (i in 1:length(f_list)) {
+#   models[[i]] <- lm(formula = f_list[[i]], data=df)
+#   print(summary(models[[i]]))
+# }
 ```
 
 Currently all of our models have incredibly low R-squared, but we need to look
@@ -67,9 +69,9 @@ look at the residual plots to see if we need to do some form of transformation.
 
 ```{r correlation}
 ##Pearson correlations for just numeric variables for the moment
-cormat = cor(drop_na(df_less[c("RIDAGEYR", "INDFMPIR", "ALQ130", "PAQ670", "PAD680", "BMXBMI")]))
-pres <- cor.mtest(drop_na(df_less[c("RIDAGEYR", "INDFMPIR", "ALQ130", "PAQ670", "PAD680", "BMXBMI")]), conf.level = .95)
-corrplot.mixed(cormat, lower.col = "black", number.cex = 1,p.mat = pres$p, sig.level = .05) # cross out insignificant coefficient
+# cormat = cor(drop_na(df_less[c("RIDAGEYR", "INDFMPIR", "ALQ130", "PAQ670", "PAD680", "BMXBMI")]))
+# pres <- cor.mtest(drop_na(df_less[c("RIDAGEYR", "INDFMPIR", "ALQ130", "PAQ670", "PAD680", "BMXBMI")]), conf.level = .95)
+# corrplot.mixed(cormat, lower.col = "black", number.cex = 1,p.mat = pres$p, sig.level = .05) # cross out insignificant coefficient
 ```
 ```{r vif_calculations}
 # car::vif(models[3]) ## Need to do some work here to get this working since everything has to be numeric -- does it make sense when we are using categoral variables?
@@ -93,7 +95,7 @@ full <- full |>
 # svy_formula <- SLD012 ~ RIDAGEYR + RIDRETH3 + DMDEDUC2 + INDFMPIR + BMXBMI + DUQ220U * ALQ130 
 
 # I think we should drop education which frees up enough to add in the physical activity variables
-svy_formula <- SLD012 ~ RIDAGEYR + RIDRETH3 + INDFMPIR + BMXBMI + PAQ670 + PAD680 + DUQ220U * ALQ130 
+svy_formula <- SLD012 ~ RIDAGEYR + RIDRETH3 + INDFMPIR + BMXBMI + PAQ670 + DUQ220U * ALQ130 
 
 analysis_vars <- all.vars(svy_formula)
 
@@ -145,4 +147,14 @@ summary(svy_mod, df.resid=degf(analytic_design))
 
 ```
 
+
+
+NICO start here: 
+
+Survey object hold the data in svy_object$variables if you want to review the data
+associated with the survey design object. Everything above should run without issue
+and you should be left with:
+* a survey design object `analytic_design`
+* the unfiltered data `full`
+* and the initial model `svy_mod`
 
